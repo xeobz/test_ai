@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Dict, Any
@@ -50,7 +51,7 @@ class LLMClient:
             "response_format": {"type": "json_object"}
         }
 
-        # Выполняем запрос с повторными попытками (retry logic)
+        # Выполняем запрос с экспоненциальной задержкой (Exponential Backoff)
         max_retries = 3
         last_error = None
         
@@ -63,6 +64,21 @@ class LLMClient:
                         json=payload
                     )
                     
+                    # Обработка временной перегрузки API (429, 500, 502, 503, 504)
+                    if response.status_code in (429, 500, 502, 503, 504):
+                        error_detail = response.text
+                        logger.warning(
+                            f"LLM API временная ошибка {response.status_code} "
+                            f"(попытка {attempt}/{max_retries}): {error_detail}"
+                        )
+                        if attempt == max_retries:
+                            raise LLMClientError(
+                                f"Сервис LLM временно перегружен ({response.status_code}) после {max_retries} попыток."
+                            )
+                        # Экспоненциальный Backoff: 1.5s, 3s
+                        await asyncio.sleep(1.5 * attempt)
+                        continue
+                        
                     if response.status_code != 200:
                         error_detail = response.text
                         logger.error(f"LLM API Error (status {response.status_code}): {error_detail}")

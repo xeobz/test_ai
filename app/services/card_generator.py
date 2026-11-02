@@ -15,22 +15,21 @@ class CardGeneratorService:
         missing = []
         if not product.manufacturer:
             missing.append("Производитель прибора")
-        if not product.specs:
-            missing.append("Технические характеристики (specs)")
-        else:
-            # Проверяем типовые параметры для КИПиА
-            specs_lower = {k.lower(): v for k, v in product.specs.items()}
-            has_range = any("диапазон" in k or "предел" in k for k in specs_lower)
-            has_accuracy = any("класс" in k or "погрешност" in k or "точност" in k for k in specs_lower)
-            has_connection = any("присоединен" in k or "резьб" in k or "монтаж" in k for k in specs_lower)
             
-            if not has_range:
-                missing.append("Диапазон измерений")
-            if not has_accuracy:
-                missing.append("Класс точности / погрешность")
-            if not has_connection:
-                missing.append("Тип присоединения к процессу")
-                
+        # Проверяем характеристики в specs И в тексте описания вместе
+        search_text = (product.description or "").lower() + " " + " ".join(product.specs.keys()).lower() + " " + " ".join(product.specs.values()).lower()
+        
+        has_range = any(w in search_text for w in ["диапазон", "предел", "кпа", "мпа", "бар", "°c", "мм рт"])
+        has_accuracy = any(w in search_text for w in ["класс", "погрешност", "точност", "%"])
+        has_connection = any(w in search_text for w in ["присоединен", "резьб", "монтаж", "фланец", "штуцер", "g1/", "м20"])
+        
+        if not has_range:
+            missing.append("Диапазон измерений")
+        if not has_accuracy:
+            missing.append("Класс точности / погрешность")
+        if not has_connection:
+            missing.append("Тип присоединения к процессу")
+            
         if not product.description or len(product.description.strip()) < 30:
             missing.append("Развернутое описание / выдержка из паспорта")
             

@@ -263,7 +263,17 @@ async function generateCard() {
         });
 
         const data = await resp.json();
-        if (!resp.ok || !data.success) {
+        if (!resp.ok) {
+            let errorMsg = "Ошибка при генерации карточки";
+            if (data.detail && Array.isArray(data.detail)) {
+                errorMsg = data.detail.map(d => `${d.loc.slice(-1)}: ${d.msg}`).join("; ");
+            } else if (data.error) {
+                errorMsg = data.error;
+            }
+            throw new Error(errorMsg);
+        }
+
+        if (!data.success) {
             throw new Error(data.error || "Произошла ошибка при генерации карточки.");
         }
 

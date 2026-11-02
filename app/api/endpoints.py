@@ -17,7 +17,7 @@ generator_service = CardGeneratorService()
 @router.get("/", response_class=HTMLResponse)
 async def get_index(request: Request):
     """Веб-интерфейс для контент-менеджера"""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 @router.post("/api/generate", response_model=GenerationResponse)
 async def generate_product_card(product: ProductInput):
