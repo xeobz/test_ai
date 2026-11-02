@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-помощник подготовки карточек товаров B2B</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { background-color: #f8f9fa; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .card-header-custom { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; }
+        .result-box { background: #ffffff; border-radius: 8px; border: 1px solid #dee2e6; }
+        pre { background: #212529; color: #f8f9fa; padding: 15px; border-radius: 6px; font-size: 0.85rem; max-height: 500px; }
+        .badge-missing { background-color: #ffc107; color: #000; }
+        .char-counter { font-size: 0.8rem; color: #6c757d; }
+    </style>
+</head>
+<body class="py-4">
+<div class="container">
+    <header class="pb-3 mb-4 border-bottom d-flex justify-content-between align-items-center">
+        <div>
+            <h1 class="h3 text-dark mb-1"><i class="bi bi-cpu text-primary me-2"></i>AI-помощник карточек товаров (КИПиА)</h1>
+            <p class="text-muted small mb-0">Генерация B2B-описаний, SEO-заголовков и выявление недостающих характеристик</p>
+        </div>
+        <div>
+            <span class="badge bg-primary px-3 py-2"><i class="bi bi-shield-check me-1"></i>Zero-Hallucination Mode</span>
+        </div>
+    </header>
+
+    <div class="row g-4">
+        <!-- Левая колонка: Ввод данных -->
+        <div class="col-lg-5">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header card-header-custom py-3 d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold"><i class="bi bi-input-cursor-text me-2"></i>Входные данные</span>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-outline-light btn-sm" onclick="loadExample(1)">Пример 1 (Манометр)</button>
+                        <button type="button" class="btn btn-outline-light btn-sm" onclick="loadExample(2)">Пример 2 (Датчик)</button>
+                        <button type="button" class="btn btn-outline-warning btn-sm" onclick="loadExample(3)">Неполные данные</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Переключатель режима ввода -->
+                    <ul class="nav nav-pills nav-fill mb-3" id="inputTab" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active py-1" id="json-tab" data-bs-toggle="tab" data-bs-target="#json-mode" type="button"><i class="bi bi-braces me-1"></i>Входной JSON</button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link py-1" id="form-tab" data-bs-toggle="tab" data-bs-target="#form-mode" type="button"><i class="bi bi-ui-checks me-1"></i>Веб-форма</button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="inputTabContent">
+                        <!-- Вкладка JSON -->
+                        <div class="tab-pane fade show active" id="json-mode">
+                            <div class="mb-3">
+                                <label for="jsonInput" class="form-label small text-muted">Вставьте JSON товара:</label>
+                                <textarea class="form-control font-monospace" id="jsonInput" rows="14" style="font-size: 0.85rem;"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Вкладка Форма -->
+                        <div class="tab-pane fade" id="form-mode">
+                            <div class="mb-2">
+                                <label class="form-label small">Название прибора *</label>
+                                <input type="text" class="form-control form-control-sm" id="formName" placeholder="например, Манометр DM 02">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Производитель</label>
+                                <input type="text" class="form-control form-control-sm" id="formManufacturer" placeholder="например, Манотомь">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small">Характеристики (Каждая с новой строки "Ключ: Значение")</label>
+                                <textarea class="form-control form-control-sm" id="formSpecs" rows="4" placeholder="диапазон измерений: 0–1,6 МПа&#10;класс точности: 1,5&#10;присоединение: G1/2"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small">Описание / Выдержка из паспорта</label>
+                                <textarea class="form-control form-control-sm" id="formDesc" rows="4" placeholder="Прибор предназначен для измерения..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary w-100 py-2 fw-semibold" id="btnSubmit" onclick="generateCard()">
+                        <span id="spinner" class="spinner-border spinner-border-sm me-2 d-none" role="status"></span>
+                        <i class="bi bi-magic me-1"></i>Сформировать карточку товара
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Правая колонка: Результат -->
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold text-dark"><i class="bi bi-file-earmark-check text-success me-2"></i>Результат генерации</span>
+                    <div id="copyButtons" class="d-none">
+                        <button class="btn btn-outline-secondary btn-sm me-1" onclick="copyResult('markdown')"><i class="bi bi-clipboard me-1"></i>Markdown</button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="copyResult('json')"><i class="bi bi-braces me-1"></i>JSON</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Заглушка до генерации -->
+                    <div id="placeholder" class="text-center py-5 text-muted">
+                        <i class="bi bi-file-earmark-text" style="font-size: 3rem;"></i>
+                        <p class="mt-2">Выберите пример или вставьте свои данные слева и нажмите «Сформировать карточку товара»</p>
+                    </div>
+
+                    <!-- Ошибки -->
+                    <div id="errorAlert" class="alert alert-danger d-none" role="alert"></div>
+
+                    <!-- Карточка результата -->
+                    <div id="resultContent" class="d-none">
+                        <!-- Блок предупреждения о недостающих данных -->
+                        <div id="missingNotice" class="alert alert-warning py-2 px-3 small d-none">
+                            <strong><i class="bi bi-exclamation-triangle-fill me-1"></i>Внимание контент-менеджеру:</strong>
+                            <div id="missingList" class="mt-1"></div>
+                        </div>
+
+                        <!-- Превью карточки -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between">
+                                <label class="form-label fw-bold small text-muted text-uppercase">1. SEO-заголовок (Title)</label>
+                                <span id="titleCounter" class="char-counter"></span>
+                            </div>
+                            <div class="p-2 bg-light border rounded fw-semibold text-primary" id="resTitle"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between">
+                                <label class="form-label fw-bold small text-muted text-uppercase">2. SEO-описание (800–1200 симв.)</label>
+                                <span id="descCounter" class="char-counter"></span>
+                            </div>
+                            <div class="p-3 bg-light border rounded small" id="resDesc" style="line-height: 1.6;"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted text-uppercase">3. Ключевые характеристики</label>
+                            <table class="table table-sm table-bordered bg-white mb-0" id="resSpecsTable">
+                                <tbody id="resSpecsBody"></tbody>
+                            </table>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted text-uppercase">4. Поисковые запросы (SEO)</label>
+                            <div id="resQueries" class="d-flex flex-wrap gap-2"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted text-uppercase">5. Коммерческий блок (для РОПа / менеджера)</label>
+                            <div class="p-3 bg-light border rounded small">
+                                <p class="mb-1"><strong>Целевая аудитория:</strong> <span id="resAudience"></span></p>
+                                <p class="mb-0"><strong>Задачи:</strong> <span id="resTasks"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const EXAMPLES = {
+    1: {
+        "name": "Манометр показывающий DM 02",
+        "manufacturer": "Манотомь",
+        "specs": {
+            "диапазон измерений": "0–1,6 МПа",
+            "класс точности": "1,5",
+            "присоединение": "G1/2",
+            "диаметр корпуса": "100 мм"
+        },
+        "description": "Прибор предназначен для измерения избыточного давления некристаллизующихся жидкостей, пара и газа, неагрессивных к медным сплавам. Используется в промышленных трубопроводах, котельных установках и системах тепловодоснабжения. Корпус выполнен из стали, штуцер — латунь."
+    },
+    2: {
+        "name": "Датчик давления микропроцессорный АИР-20/М2",
+        "manufacturer": "Элемер",
+        "specs": {
+            "диапазон измерений": "от 0...0,4 кПа до 0...60 МПа",
+            "основная погрешность": "±0,1%",
+            "выходной сигнал": "4-20 мА с поддержкой HART",
+            "питание": "от 12 до 42 В постоянного тока",
+            "степень защиты": "IP65",
+            "климатическое исполнение": "от -40 до +70 °C"
+        },
+        "description": "Интеллектуальный датчик для непрерывного преобразования абсолютного, избыточного давления и давления-разрежения в унифицированный токовый выходной сигнал и цифровой сигнал по протоколу HART. Встроенный ЖКИ-индикатор с подсветкой. Предназначен для систем автоматического контроля, регулирования и управления технологическими процессами на объектах нефтегазовой, химической и энергетической отраслей."
+    },
+    3: {
+        "name": "Термопреобразователь сопротивления ТСП",
+        "manufacturer": null,
+        "specs": {
+            "диаметр датчика": "6 мм"
+        },
+        "description": "Датчик температуры для технологических линий."
+    }
+};
+
+let lastResult = null;
+
+function loadExample(id) {
+    const data = EXAMPLES[id];
+    document.getElementById("jsonInput").value = JSON.stringify(data, null, 2);
+    
+    // Sync to form
+    document.getElementById("formName").value = data.name || "";
+    document.getElementById("formManufacturer").value = data.manufacturer || "";
+    document.getElementById("formDesc").value = data.description || "";
+    const specsStr = Object.entries(data.specs || {}).map(([k, v]) => `${k}: ${v}`).join("\n");
+    document.getElementById("formSpecs").value = specsStr;
+}
+
+// Загружаем первый пример по умолчанию
+loadExample(1);
+
+async function generateCard() {
+    const spinner = document.getElementById("spinner");
+    const btnSubmit = document.getElementById("btnSubmit");
+    const placeholder = document.getElementById("placeholder");
+    const errorAlert = document.getElementById("errorAlert");
+    const resultContent = document.getElementById("resultContent");
+    const copyButtons = document.getElementById("copyButtons");
+
+    errorAlert.classList.add("d-none");
+    spinner.classList.remove("d-none");
+    btnSubmit.disabled = true;
+
+    let payload = null;
+    const isJsonTab = document.getElementById("json-tab").classList.contains("active");
+
+    if (isJsonTab) {
+        try {
+            payload = JSON.parse(document.getElementById("jsonInput").value);
+        } catch (e) {
+            errorAlert.textContent = "Ошибка: некорректный формат JSON! Проверьте синтаксис (запятые, кавычки).";
+            errorAlert.classList.remove("d-none");
+            spinner.classList.add("d-none");
+            btnSubmit.disabled = false;
+            return;
+        }
+    } else {
+        const specs = {};
+        const lines = document.getElementById("formSpecs").value.split("\n");
+        lines.forEach(line => {
+            const parts = line.split(":");
+            if (parts.length >= 2) {
+                specs[parts[0].trim()] = parts.slice(1).join(":").trim();
+            }
+        });
+        payload = {
+            name: document.getElementById("formName").value,
+            manufacturer: document.getElementById("formManufacturer").value || null,
+            specs: specs,
+            description: document.getElementById("formDesc").value || null
+        };
+    }
+
+    try {
+        const resp = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await resp.json();
+        if (!resp.ok || !data.success) {
+            throw new Error(data.error || "Произошла ошибка при генерации карточки.");
+        }
+
+        lastResult = data;
+        renderResult(data);
+        placeholder.classList.add("d-none");
+        resultContent.classList.remove("d-none");
+        copyButtons.classList.remove("d-none");
+
+    } catch (err) {
+        errorAlert.textContent = err.message;
+        errorAlert.classList.remove("d-none");
+    } finally {
+        spinner.classList.add("d-none");
+        btnSubmit.disabled = false;
+    }
+}
+
+function renderResult(resp) {
+    const card = resp.data;
+    
+    // Title
+    document.getElementById("resTitle").textContent = card.seo_title;
+    document.getElementById("titleCounter").textContent = `${card.seo_title.length}/70 символов`;
+    
+    // Desc
+    document.getElementById("resDesc").textContent = card.seo_description;
+    const descLen = card.seo_description.length;
+    const badgeColor = (descLen >= 800 && descLen <= 1200) ? "text-success" : "text-warning";
+    document.getElementById("descCounter").innerHTML = `<span class="${badgeColor} fw-semibold">${descLen}</span> / 800–1200 симв.`;
+
+    // Specs
+    const tbody = document.getElementById("resSpecsBody");
+    tbody.innerHTML = "";
+    for (const [k, v] of Object.entries(card.key_characteristics)) {
+        const tr = document.createElement("tr");
+        const isMissing = v.toLowerCase().includes("данных нет");
+        tr.innerHTML = `<th style="width: 40%;" class="text-muted">${k}</th><td class="${isMissing ? 'text-danger fst-italic' : 'fw-medium'}">${v}</td>`;
+        tbody.appendChild(tr);
+    }
+
+    // Queries
+    const qDiv = document.getElementById("resQueries");
+    qDiv.innerHTML = "";
+    card.search_queries.forEach(q => {
+        const span = document.createElement("span");
+        span.className = "badge bg-secondary-subtle text-secondary-emphasis border px-2 py-1";
+        span.textContent = q;
+        qDiv.appendChild(span);
+    });
+
+    // Commercial
+    document.getElementById("resAudience").textContent = card.commercial_block.target_audience;
+    document.getElementById("resTasks").textContent = card.commercial_block.tasks_solved;
+
+    // Missing
+    const missingNotice = document.getElementById("missingNotice");
+    if (!card.data_completeness.is_sufficient || card.data_completeness.missing_fields.length > 0) {
+        missingNotice.classList.remove("d-none");
+        const listDiv = document.getElementById("missingList");
+        listDiv.innerHTML = card.data_completeness.missing_fields.map(f => `<div>• ${f}</div>`).join("");
+        if (card.data_completeness.notes) {
+            listDiv.innerHTML += `<div class="mt-1 text-muted fst-italic">Совет: ${card.data_completeness.notes}</div>`;
+        }
+    } else {
+        missingNotice.classList.add("d-none");
+    }
+}
+
+function copyResult(type) {
+    if (!lastResult) return;
+    let text = "";
+    if (type === "markdown") {
+        text = lastResult.markdown;
+    } else {
+        text = JSON.stringify(lastResult.data, null, 2);
+    }
+    navigator.clipboard.writeText(text).then(() => {
+        alert(type === "markdown" ? "Markdown успешно скопирован в буфер обмена!" : "JSON успешно скопирован в буфер обмена!");
+    });
+}
+</script>
+</body>
+</html>
